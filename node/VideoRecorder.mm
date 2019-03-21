@@ -7,7 +7,6 @@ namespace mizt {
         
         int width;
         int height;
-        
         int fps = 30;
         
         AVAssetWriter *writer;
@@ -18,17 +17,17 @@ namespace mizt {
         NSDictionary *settings;
         NSDictionary *attributes;
                         
-        int frameCount;
+        int frameCount = 0;
         
         unsigned int *raw;
         CVPixelBufferRef buffer;
         
-        bool isRunning = false;        
-        bool isWait = false;
+        bool isRunning = false;
         bool isFinish = false;
+        bool isWait = false;
                 
         void onStart(const v8::FunctionCallbackInfo<v8::Value>&args) {
-            if(!isRunning&&!isFinish) {
+            if(!isRunning&&!isFinish&&!isWait) {
                 v8::HandleScope handle_scope(args.GetIsolate());
                 if(args.Length()==4) {
                     if(args[1]->IsNumber()&&args[2]->IsNumber()&&args[3]->IsNumber()) {
@@ -37,39 +36,29 @@ namespace mizt {
                             width  = args[1]->NumberValue();
                             height = args[2]->NumberValue();
                             fps = args[3]->NumberValue();
-                            
                             long unixtime = (CFAbsoluteTimeGetCurrent()+kCFAbsoluteTimeIntervalSince1970)*1000;
                             NSString *timeStampString = [NSString stringWithFormat:@"%f",(unixtime/1000.0)];
                             NSDate *date = [NSDate dateWithTimeIntervalSince1970:[timeStampString doubleValue]];
                             NSDateFormatter *format = [[NSDateFormatter alloc] init];
                             [format setLocale:[[NSLocale alloc] initWithLocaleIdentifier:@"ja_JP"]];
-                            [format setDateFormat:@"yyyy_MM_dd_HH_mm_ss_SSS"];
-                                
+                            [format setDateFormat:@"yyyy_MM_dd_HH_mm_ss_SSS"];                                
                             NSString *path = [NSString stringWithFormat:@"%s/%@.mov",(const char*)*dirname,[format stringFromDate:date]];
-
                             NSLog(@"start %@ %dx%d %dfps",path,width,height,fps);
-                            
                             raw = (unsigned int *)malloc(width*height*sizeof(unsigned int));
                             CVPixelBufferCreateWithBytes(kCFAllocatorDefault,width,height,kCVPixelFormatType_32ARGB,raw,width<<2,nil,nil,nil,&buffer);
-                            
                             CVBufferSetAttachment(buffer,kCVImageBufferColorPrimariesKey,kCVImageBufferColorPrimaries_ITU_R_709_2,kCVAttachmentMode_ShouldPropagate);
                             CVBufferSetAttachment(buffer,kCVImageBufferYCbCrMatrixKey,kCVImageBufferYCbCrMatrix_ITU_R_709_2,kCVAttachmentMode_ShouldPropagate);
                             CVBufferSetAttachment(buffer,kCVImageBufferTransferFunctionKey,kCVImageBufferTransferFunction_ITU_R_709_2,kCVAttachmentMode_ShouldPropagate);
-                            
                             writer = [[AVAssetWriter alloc] initWithURL:[NSURL fileURLWithPath:path] fileType:AVFileTypeQuickTimeMovie error:nil];
-
                             settings = [NSDictionary dictionaryWithObjectsAndKeys:AVVideoCodecTypeAppleProRes4444,AVVideoCodecKey,[NSNumber numberWithInt:width],AVVideoWidthKey,[NSNumber numberWithInt:height],AVVideoHeightKey,nil];
-                            
                             videoInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeVideo outputSettings:settings];
-                                
                             attributes = [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithInt:kCVPixelFormatType_32ARGB],kCVPixelBufferPixelFormatTypeKey,nil];
                             adaptor = [AVAssetWriterInputPixelBufferAdaptor assetWriterInputPixelBufferAdaptorWithAssetWriterInput:videoInput sourcePixelBufferAttributes:attributes];
                             videoInput.expectsMediaDataInRealTime = YES;
-                            
                             [writer addInput:videoInput];
                             [writer startWriting];
                             [writer startSessionAtSourceTime:kCMTimeZero];
-                            
+                            frameCount = 0;
                             isRunning = true;
                         }
                     }
@@ -79,15 +68,12 @@ namespace mizt {
         
         void onAdd(const v8::FunctionCallbackInfo<v8::Value>&args) {
             NSLog(@"add");
-            if(isRunning&&!isFinish) {
-                
+            if(isRunning&&!isFinish&&!isWait) {
                 v8::HandleScope handle_scope(args.GetIsolate());
                 v8::Local<v8::Uint8ClampedArray> array = args[0].As<v8::Uint8ClampedArray>();
                 unsigned int *src = (unsigned int*)array->Buffer()->GetContents().Data();
-                
                 while(1) {
                     if(adaptor.assetWriterInput.readyForMoreMediaData) {
-                       
                         for(int i=0; i<height; i++) {
                             for(int j=0; j<width; j++) {
                                 int addr = i*width+j;
@@ -95,15 +81,9 @@ namespace mizt {
                                 raw[addr] = (abgr<<8)|(abgr>>24); // bgra                    
                             }
                         }
-                        
-                        CVPixelBufferLockBaseAddress(buffer,0);
-                        
-                        int scale = (600.0)/(1.0*fps);
-                        [adaptor appendPixelBuffer:buffer withPresentationTime:CMTimeMake(frameCount*scale,600)];
-                        frameCount++;
-                        
+                        CVPixelBufferLockBaseAddress(buffer,0);                        
+                        [adaptor appendPixelBuffer:buffer withPresentationTime:CMTimeMake((frameCount++)*(600.0/(double)fps),600)];
                         CVPixelBufferUnlockBaseAddress(buffer,0);
-                        
                         break;
                     }
                     else {
