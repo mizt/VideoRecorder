@@ -5,8 +5,8 @@
 namespace mizt {
     namespace VideoRecorder {
         
-        int width;
-        int height;
+        int width = 512;
+        int height = 512;
         int fps = 30;
         
         AVAssetWriter *writer;
@@ -31,11 +31,13 @@ namespace mizt {
                 v8::HandleScope handle_scope(args.GetIsolate());
                 if(args.Length()==4) {
                     if(args[1]->IsNumber()&&args[2]->IsNumber()&&args[3]->IsNumber()) {
-                        v8::String::Utf8Value dirname(args[0]);
+                       v8::Isolate *isolate = args.GetIsolate();
+                        v8::String::Utf8Value dirname(isolate, args[0]);
                         if(*dirname) {
-                            width  = args[1]->NumberValue();
-                            height = args[2]->NumberValue();
-                            fps = args[3]->NumberValue();
+                            v8::Local<v8::Context> context = isolate->GetCurrentContext();
+                            width  = (int)args[1]->NumberValue(context).FromMaybe(512);
+                            height = (int)args[2]->NumberValue(context).FromMaybe(512);
+                            fps = (int)args[3]->NumberValue(context).FromMaybe(30);
                             long unixtime = (CFAbsoluteTimeGetCurrent()+kCFAbsoluteTimeIntervalSince1970)*1000;
                             NSString *timeStampString = [NSString stringWithFormat:@"%f",(unixtime/1000.0)];
                             NSDate *date = [NSDate dateWithTimeIntervalSince1970:[timeStampString doubleValue]];

@@ -1,35 +1,51 @@
-var isWindow = (typeof window !== 'undefined') ? true:false
+let isWindow = (typeof window !== 'undefined') ? true:false
 
-var InBack  = function(t) { return 3*t*t*t-2*t*t; }
-var OutBack = function(t) { return 1.-InBack(1.-t); }
+let InBack  = function(t) { return 3*t*t*t-2*t*t; }
+let OutBack = function(t) { return 1.-InBack(1.-t); }
 
-var canvas = (isWindow)?document.createElement("canvas"):(new (require("canvas"))());
+let canvas;
 
-var context = canvas.getContext("2d");
-canvas.width  = 512;
-canvas.height = 512;
+const WIDTH = 1280;
+const HEIGHT = 720;
 
-var rec;
+if(isWindow) {
+    canvas = document.createElement("canvas");
+    canvas.width  = WIDTH;
+    canvas.height = HEIGHT;
+    
+    canvas.style.background = "#CCC";
+    
+}
+else {
+    const { createCanvas } = require("canvas")
+    canvas = createCanvas(WIDTH,HEIGHT)
+}
+
+let context = canvas.getContext("2d");
+
+
+let rec;
 if(!isWindow) {
     rec = require('../node/build/Release/VideoRecorder.node');
     rec.start(__dirname,canvas.width,canvas.height,30);
 }
 
-var w = 100;
-var d = 16;
-var o = (canvas.width-w)>>1;  
-var p = [[0,0],[0,0],[0,0],[0,0]];
+let w = 256;
+let d = 16;
+let ox = (canvas.width -w)>>1;  
+let oy = (canvas.height-w)>>1;  
+let p = [[0,0],[0,0],[0,0],[0,0]];
 
-var cnt = 0;
-var totalFrames = 16*30;
+let cnt = 0;
+let totalFrames = 16*30;
 
-var tid = setInterval(function(){
-    var v = 0;
-    var n = cnt%(d<<1);
+let tid = setInterval(function() {
+    let v = 0;
+    let n = cnt%(d<<1);
     
     if(n==0) {
-        for(var k=0; k<4*2; k++) {
-            p[k>>1][k&1] = 10+((Math.random()*0x7FFFFF)>>0)%90;
+        for(let k=0; k<4*2; k++) {
+            p[k>>1][k&1] = 50+((Math.random()*0x7FFFFF)>>0)%100;
         }
     }
     
@@ -39,15 +55,23 @@ var tid = setInterval(function(){
     else v = OutBack(n/d);
     
     context.clearRect(0,0,canvas.width,canvas.height);               
-    context.fillStyle = "rgba(0,0,255,0.8)";
-    context.beginPath();
-        context.moveTo(o+0-v*p[0][0],o+0-v*p[0][1]);
-        context.lineTo(o+w+v*p[1][0],o+0-v*p[1][1]);
-        context.lineTo(o+w+v*p[2][0],o+w+v*p[2][1]);
-        context.lineTo(o+0-v*p[3][0],o+w+v*p[3][1]);
-    context.closePath();
-    context.fill();
     
+    let gradient = context.createLinearGradient(0, 0, 0, HEIGHT);
+
+    gradient.addColorStop(0.15,"rgba(0,0,0,0)");
+    gradient.addColorStop(0.85,"rgba(63,127,256,1)");
+    
+    context.fillStyle = gradient;
+     
+    context.beginPath();
+        context.moveTo(ox+0-v*p[0][0],oy+0-v*p[0][1]);
+        context.lineTo(ox+w+v*p[1][0],oy+0-v*p[1][1]);
+        context.lineTo(ox+w+v*p[2][0],oy+w+v*p[2][1]);
+        context.lineTo(ox+0-v*p[3][0],oy+w+v*p[3][1]);
+    context.closePath();
+
+    context.fill();
+
     if(!isWindow) {
         if(cnt<totalFrames) {
             rec.add(context.getImageData(0,0,canvas.width,canvas.height).data);
