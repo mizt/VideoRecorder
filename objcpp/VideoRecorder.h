@@ -24,21 +24,34 @@ class VideoRecorder {
         bool isRunning = false;
         bool isFinish = true;
         bool isWait = false;
+        
+        void setAttachment(const CFStringRef colorPrimaries,const CFStringRef ycbcrmatrix,const CFStringRef transferFunction) {
+            CVBufferSetAttachment(this->buffer,kCVImageBufferColorPrimariesKey,colorPrimaries,kCVAttachmentMode_ShouldPropagate);
+            CVBufferSetAttachment(this->buffer,kCVImageBufferYCbCrMatrixKey,ycbcrmatrix,kCVAttachmentMode_ShouldPropagate);
+            CVBufferSetAttachment(this->buffer,kCVImageBufferTransferFunctionKey,transferFunction, kCVAttachmentMode_ShouldPropagate);
+        }
                 
     public:
                 
         VideoRecorder() {}
         
-        void start(int width,int height,int fps=30) {
+        void start(int width,int height,int fps=30,bool isSandobox=false) {
+            
             if(!this->isRunning&&this->isFinish&&!this->isWait) {
+            
                 this->width  = width;
                 this->height = height;
-                this->fps = fps;                                
+                this->fps = fps;
+                
                 this->raw = (unsigned int *)malloc(this->width*this->height*sizeof(unsigned int));
                 CVPixelBufferCreateWithBytes(kCFAllocatorDefault,this->width,this->height,kCVPixelFormatType_32ARGB,this->raw,this->width*4,nil, nil, nil,&this->buffer);
-                CVBufferSetAttachment(this->buffer,kCVImageBufferColorPrimariesKey,kCVImageBufferColorPrimaries_ITU_R_709_2,kCVAttachmentMode_ShouldPropagate);
-                CVBufferSetAttachment(this->buffer,kCVImageBufferYCbCrMatrixKey,kCVImageBufferYCbCrMatrix_ITU_R_709_2,kCVAttachmentMode_ShouldPropagate);
-                CVBufferSetAttachment(this->buffer,kCVImageBufferTransferFunctionKey,kCVImageBufferTransferFunction_ITU_R_709_2,kCVAttachmentMode_ShouldPropagate);                    
+                
+                this->setAttachment(
+                    kCVImageBufferColorPrimaries_ITU_R_709_2,
+                    (height>=720)?kCVImageBufferYCbCrMatrix_ITU_R_709_2:kCVImageBufferYCbCrMatrix_ITU_R_601_4,
+                    kCVImageBufferTransferFunction_ITU_R_709_2
+                );
+                                                  
                 long unixtime = (CFAbsoluteTimeGetCurrent()+kCFAbsoluteTimeIntervalSince1970)*1000;
                 NSString *timeStampString = [NSString stringWithFormat:@"%f",(unixtime/1000.0)];
                 NSDate *date = [NSDate dateWithTimeIntervalSince1970:[timeStampString doubleValue]];
@@ -47,8 +60,19 @@ class VideoRecorder {
                 [format setDateFormat:@"yyyy_MM_dd_HH_mm_ss_SSS"];
                 NSString *filename = [format stringFromDate:date];
                 NSArray * paths = NSSearchPathForDirectoriesInDomains (NSMoviesDirectory,NSUserDomainMask, YES);
-                NSString * documentsDirectory = [paths objectAtIndex:0];
-                NSString *path = [NSString stringWithFormat:@"%@/%@.mov",@".",filename];                                
+                
+                NSString *path = nil;
+                
+                if(isSandobox) {
+                    NSString *documentsDirectory = [paths objectAtIndex:0];
+                    path = [NSString stringWithFormat:@"%@/%@.mov",documentsDirectory,filename];
+                }
+                else {                 
+                    path = [NSString stringWithFormat:@"./%@.mov",filename];
+                }
+                
+                NSLog(@"%@",path);
+                
                 this->writer = [[AVAssetWriter alloc] initWithURL:[NSURL fileURLWithPath:path] fileType:AVFileTypeQuickTimeMovie error:nil];            
                 this->settings = [NSDictionary dictionaryWithObjectsAndKeys:AVVideoCodecTypeAppleProRes4444,AVVideoCodecKey,[NSNumber numberWithInt:this->width],AVVideoWidthKey,[NSNumber numberWithInt:this->height],AVVideoHeightKey,nil];
                 this->videoInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeVideo outputSettings:this->settings];
@@ -64,20 +88,39 @@ class VideoRecorder {
             }
         }
         
-        void add(unsigned int *data,int rows) {
+        void add(unsigned int *data,int rows,bool isRGBA=false) {
             if(this->isRunning&&this->isFinish&&!this->isWait) {
                 while(true) {
                     if(adaptor.assetWriterInput.readyForMoreMediaData) {
-                        for(int i=0; i<this->height; i++) {
-                            for(int j=0; j<this->width; j++) {
-                                unsigned int argb = data[i*rows+j];
-                                unsigned char r = (argb>>16)&0xFF;
-                                unsigned char g = (argb>>8)&0xFF;
-                                unsigned char b = (argb)&0xFF;
-                                this->raw[i*this->width+j] = b<<24|g<<16|r<<8|255; // bgra                           
+                        
+                        if(isRGBA) {
+                            
+                            for(int i=0; i<this->height; i++) {
+                                for(int j=0; j<this->width; j++) {
+                                    unsigned int argb = data[i*rows+j];
+                                    unsigned char r = (argb>>16)&0xFF;
+                                    unsigned char g = (argb>>8)&0xFF;
+                                    unsigned char b = (argb)&0xFF;
+                                    this->raw[i*this->width+j] = r<<24|g<<16|b<<8|0xFF;
+                                }
                             }
+                            
                         }
-                        CVPixelBufferLockBaseAddress(this->buffer,0);                        
+                        else {
+                            
+                            for(int i=0; i<this->height; i++) {
+                                for(int j=0; j<this->width; j++) {
+                                    unsigned int argb = data[i*rows+j];
+                                    unsigned char r = (argb>>16)&0xFF;
+                                    unsigned char g = (argb>>8)&0xFF;
+                                    unsigned char b = (argb)&0xFF;
+                                    this->raw[i*this->width+j] = b<<24|g<<16|r<<8|0xFF;
+                                }
+                            }
+                            
+                        }
+                       
+                        CVPixelBufferLockBaseAddress(this->buffer,0);
                         [this->adaptor appendPixelBuffer:this->buffer withPresentationTime:CMTimeMake((this->frameCount++)*(600.0/(double)this->fps),600)];
                         CVPixelBufferUnlockBaseAddress(this->buffer,0);
                         break;
@@ -87,6 +130,10 @@ class VideoRecorder {
                     }
                 }
             }
+        }
+        
+        void add(unsigned int *data,bool isRGBA=false) {
+            this->add(data,this->width,isRGBA);
         }
         
         void stop() {

@@ -11,6 +11,7 @@ class App {
         int fps = 30;
             
         int cnt = 0;
+        int end = 100;
         unsigned int *dst = nullptr;
         
         VideoRecorder *recorder = new VideoRecorder();
@@ -38,14 +39,14 @@ class App {
             dispatch_source_set_timer(timer,dispatch_time(0,0),(1.0/(double)fps)*1000000000,0);
             dispatch_source_set_event_handler(timer,^{
                 
-                if(cnt>=100) {
+                if(cnt>=end) {
                     recorder->stop();
                     if(timer) {
                         dispatch_source_cancel(timer);
                     }                                    
                 }
                 else {
-                    recorder->add(dst,512);
+                    recorder->add(dst);
                 }
                 
                 cnt++;
