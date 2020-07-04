@@ -37,9 +37,11 @@ let oy = (canvas.height-w)>>1;
 let p = [[0,0],[0,0],[0,0],[0,0]];
 
 let cnt = 0;
-let totalFrames = 16*30;
+let totalFrames = d*4;
 
 let tid = setInterval(function() {
+    
+    
     let v = 0;
     let n = cnt%(d<<1);
     
@@ -58,8 +60,8 @@ let tid = setInterval(function() {
     
     let gradient = context.createLinearGradient(0, 0, 0, HEIGHT);
 
-    gradient.addColorStop(0.15,"rgba(0,0,0,0)");
-    gradient.addColorStop(0.85,"rgba(63,127,256,1)");
+    gradient.addColorStop(0.25,"rgba(0,0,0,0)");
+    gradient.addColorStop(0.75,"rgba(255,255,255,1)");
     
     context.fillStyle = gradient;
      

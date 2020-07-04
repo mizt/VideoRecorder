@@ -1,7 +1,8 @@
 #import <Cocoa/Cocoa.h>
 #import <AVFoundation/AVFoundation.h>
+#import "Recorder.h"
 
-class VideoRecorder {
+class VideoRecorder : public Recorder {
         
     private:
         
@@ -18,7 +19,7 @@ class VideoRecorder {
                         
         int frameCount = 0;
         
-        unsigned int *raw;
+        unsigned int *raw = nullptr;
         CVPixelBufferRef buffer = nullptr;
                 
         bool isRunning = false;
@@ -35,7 +36,7 @@ class VideoRecorder {
                 
         VideoRecorder() {}
         
-        void start(int width,int height,int fps=30,bool isSandobox=false) {
+        void start(int width, int height, int fps=30, bool isSandobox=false) {
             
             if(!this->isRunning&&this->isFinish&&!this->isWait) {
             
@@ -43,6 +44,7 @@ class VideoRecorder {
                 this->height = height;
                 this->fps = fps;
                 
+                if(this->raw) delete[] this->raw;
                 this->raw = (unsigned int *)malloc(this->width*this->height*sizeof(unsigned int));
                 CVPixelBufferCreateWithBytes(kCFAllocatorDefault,this->width,this->height,kCVPixelFormatType_32ARGB,this->raw,this->width*4,nil, nil, nil,&this->buffer);
                 
@@ -157,5 +159,7 @@ class VideoRecorder {
             }
         }
         
-        ~VideoRecorder() {}
+        ~VideoRecorder() {
+            if(this->raw) delete[] this->raw;
+        }
 };

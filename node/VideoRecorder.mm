@@ -19,8 +19,8 @@ namespace mizt {
                         
         int frameCount = 0;
         
-        unsigned int *raw;
-        CVPixelBufferRef buffer;
+        unsigned int *raw = nullptr;
+        CVPixelBufferRef buffer = nullptr;
         
         bool isRunning = false;
         bool isFinish = false;
@@ -46,6 +46,7 @@ namespace mizt {
                             [format setDateFormat:@"yyyy_MM_dd_HH_mm_ss_SSS"];                                
                             NSString *path = [NSString stringWithFormat:@"%s/%@.mov",(const char*)*dirname,[format stringFromDate:date]];
                             NSLog(@"start %@ %dx%d %dfps",path,width,height,fps);
+                            if(raw) free((void *)raw);
                             raw = (unsigned int *)malloc(width*height*sizeof(unsigned int));
                             CVPixelBufferCreateWithBytes(kCFAllocatorDefault,width,height,kCVPixelFormatType_32ARGB,raw,width<<2,nil,nil,nil,&buffer);
                             CVBufferSetAttachment(buffer,kCVImageBufferColorPrimariesKey,kCVImageBufferColorPrimaries_ITU_R_709_2,kCVAttachmentMode_ShouldPropagate);
@@ -104,7 +105,7 @@ namespace mizt {
                 [writer finishWritingWithCompletionHandler:^{                                                    
                     CVPixelBufferPoolRelease(adaptor.pixelBufferPool);
                     CVBufferRelease(buffer);
-                    free((void *)raw);
+                    if(raw) free((void *)raw);
                     isWait = false;
                     isFinish = true;  
                     NSLog(@"done");
